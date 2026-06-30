@@ -1,0 +1,6 @@
+{
+  "name": "JNAS AI Core",
+  "description": "Master System Architecture Dashboard for the JNAS AI Core autonomous agent orchestration platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
