@@ -10,6 +10,7 @@ export type Route =
   | 'crm'
   | 'lms'
   | 'kms'
+  | 'document-intelligence'
   | 'engineering'
   | 'packaging'
   | 'admin'

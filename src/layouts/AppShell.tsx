@@ -33,6 +33,7 @@ import {
   Terminal,
   Box,
   KeyRound,
+  FileText,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -85,6 +86,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children, currentRoute, onNa
     { id: 'crm', label: 'CRM Portal', icon: Users },
     { id: 'lms', label: 'LMS Training', icon: GraduationCap },
     { id: 'kms', label: 'KMS Database', icon: Database },
+    { id: 'document-intelligence', label: 'Document RAG', icon: FileText },
     { id: 'engineering', label: 'Engineering', icon: Terminal },
     { id: 'packaging', label: 'Packaging Studio', icon: Box },
     { id: 'admin', label: 'Administration', icon: KeyRound },

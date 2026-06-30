@@ -18,6 +18,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { CRMPage } from './pages/CRMPage';
 import { LMSPage } from './pages/LMSPage';
 import { KMSPage } from './pages/KMSPage';
+import { DocumentIntelligencePage } from './pages/DocumentIntelligencePage';
 import { EngineeringPage } from './pages/EngineeringPage';
 import { PackagingPage } from './pages/PackagingPage';
 import { AdminPage } from './pages/AdminPage';
@@ -86,6 +87,8 @@ function PlatformGateway() {
         return <LMSPage />;
       case 'kms':
         return <KMSPage />;
+      case 'document-intelligence':
+        return <DocumentIntelligencePage />;
       case 'engineering':
         return <EngineeringPage />;
       case 'packaging':
