@@ -16,15 +16,19 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AICorePage } from './pages/AICorePage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { CRMPage } from './pages/CRMPage';
+import { ContactsPage } from './pages/ContactsPage';
 import { LMSPage } from './pages/LMSPage';
 import { KMSPage } from './pages/KMSPage';
 import { DocumentIntelligencePage } from './pages/DocumentIntelligencePage';
+import { DocumentsPage } from './pages/DocumentsPage';
 import { EngineeringPage } from './pages/EngineeringPage';
 import { PackagingPage } from './pages/PackagingPage';
 import { AdminPage } from './pages/AdminPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ErrorPage } from './pages/ErrorPage';
+import { DecisionPage } from './pages/DecisionPage';
+import { ThreadPage } from './pages/ThreadPage';
 
 // Import Custom Design System Components for Sandbox Route
 import { Sparkles, Layers, Cpu, LayoutGrid, FileCode, Copy, ChevronRight, Sliders, Bell, Shield, MousePointer } from 'lucide-react';
@@ -83,16 +87,24 @@ function PlatformGateway() {
         return <ProjectsPage />;
       case 'crm':
         return <CRMPage />;
+      case 'contacts':
+        return <ContactsPage />;
       case 'lms':
         return <LMSPage />;
       case 'kms':
         return <KMSPage />;
       case 'document-intelligence':
         return <DocumentIntelligencePage />;
+      case 'documents':
+        return <DocumentsPage />;
       case 'engineering':
         return <EngineeringPage />;
       case 'packaging':
         return <PackagingPage />;
+      case 'decision':
+        return <DecisionPage />;
+      case 'thread':
+        return <ThreadPage />;
       case 'admin':
         return <AdminPage />;
       case 'settings':

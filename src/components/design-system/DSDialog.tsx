@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Command, Search, Sparkles, CheckCircle2, AlertTriangle, Info, ShieldAlert } from 'lucide-react';
+import { X, Command, Search, Sparkles, CheckCircle2, AlertTriangle, Info, ShieldAlert, Users, Contact, Folder, Upload, Clock, Archive, Plus, Star, RefreshCw, Cpu, Layers, Box, GitBranch, Network } from 'lucide-react';
 import { DSButton } from './DSButton';
 
 // Modal Dialog
@@ -177,10 +177,61 @@ export const DSCommandPalette: React.FC<DSCommandPaletteProps> = ({
   onCommandSelect,
 }) => {
   const commands = [
+    { prefix: '/', action: 'open-ai-workspace', desc: 'Open unified Enterprise AI Workspace', icon: Sparkles, cat: 'AI Workspace' },
+    { prefix: '/', action: 'new-ai-session', desc: 'Initialize a fresh contextual session', icon: Plus, cat: 'AI Workspace' },
+    { prefix: '/', action: 'search-ai-sessions', desc: 'Search and filter diagnostic sessions', icon: Search, cat: 'AI Workspace' },
+    { prefix: '/', action: 'favorite-ai-session', desc: 'Favorite the current diagnostic session', icon: Star, cat: 'AI Workspace' },
+    { prefix: '/', action: 'open-context-inspector', desc: 'Inspect automatic ecosystem context', icon: Layers, cat: 'AI Workspace' },
+    { prefix: '/', action: 'refresh-ai-context', desc: 'Refresh live ecosystem parameters', icon: RefreshCw, cat: 'AI Workspace' },
+    { prefix: '/', action: 'switch-ai-provider', desc: 'Switch active provider gateway', icon: Cpu, cat: 'AI Workspace' },
     { prefix: '/', action: 'ask-ai', desc: 'Query the global AI Co-Pilot', icon: Sparkles, cat: 'AI Operations' },
     { prefix: '/', action: 'create-task', desc: 'Create a new project milestone task', icon: CheckCircle2, cat: 'Workflows' },
     { prefix: '/', action: 'switch-workspace', desc: 'Switch active workspace state', icon: Command, cat: 'Navigation' },
     { prefix: '/', action: 'system-status', desc: 'Inspect environment resource bounds', icon: Info, cat: 'Administration' },
+    { prefix: '/', action: 'customer-registry', desc: 'Open Enterprise Customer Workspace Registry', icon: Users, cat: 'CRM & Client Platform' },
+    { prefix: '/', action: 'create-customer', desc: 'Register new client account in master ledger', icon: Users, cat: 'CRM & Client Platform' },
+    { prefix: '/', action: 'contact-registry', desc: 'Open Enterprise Contact Workspace Directory', icon: Contact, cat: 'Contact Platform' },
+    { prefix: '/', action: 'create-contact', desc: 'Register new operational personnel in master ledger', icon: Contact, cat: 'Contact Platform' },
+    { prefix: '/', action: 'search-contact', desc: 'Execute universal context lookup for active people', icon: Search, cat: 'Contact Platform' },
+    { prefix: '/', action: 'document-center', desc: 'Open Central Document Management Platform', icon: Folder, cat: 'Document Center' },
+    { prefix: '/', action: 'upload-document', desc: 'Upload a new file with structured enterprise metadata', icon: Upload, cat: 'Document Center' },
+    { prefix: '/', action: 'search-document', desc: 'Execute search across titles, keywords, and links', icon: Search, cat: 'Document Center' },
+    { prefix: '/', action: 'recent-documents', desc: 'Show last accessed master documents list', icon: Clock, cat: 'Document Center' },
+    { prefix: '/', action: 'favorite-documents', desc: 'Show favorite operational master files list', icon: Folder, cat: 'Document Center' },
+    { prefix: '/', action: 'archive-document', desc: 'Open historical archived file structures', icon: Archive, cat: 'Document Center' },
+    
+    // Engineering Workspace Foundation Commands
+    { prefix: '/', action: 'open-engineering-workspace', desc: 'Open primary Engineering Workspace', icon: Cpu, cat: 'Engineering Workspace' },
+    { prefix: '/', action: 'open-drawing', desc: 'Browse and inspect technical CAD drawings', icon: Folder, cat: 'Engineering Workspace' },
+    { prefix: '/', action: 'open-engineering-project', desc: 'Access active engineering projects and milestones', icon: Layers, cat: 'Engineering Workspace' },
+    { prefix: '/', action: 'search-drawings', desc: 'Search entire drawings and CAD design blueprints', icon: Search, cat: 'Engineering Workspace' },
+    { prefix: '/', action: 'search-standards', desc: 'Search aviation, material, and regulatory standards', icon: Search, cat: 'Engineering Workspace' },
+    { prefix: '/', action: 'recent-drawings', desc: 'Show recently viewed drawing schemas', icon: Clock, cat: 'Engineering Workspace' },
+    { prefix: '/', action: 'engineering-dashboard', desc: 'Display engineering metrics and KPI widgets', icon: Cpu, cat: 'Engineering Workspace' },
+
+    // Packaging Studio Commands
+    { prefix: '/', action: 'open-packaging-studio', desc: 'Open primary Packaging Studio Workspace', icon: Box, cat: 'Packaging Studio' },
+    { prefix: '/', action: 'create-packaging-project', desc: 'Create a new packaging specification', icon: Plus, cat: 'Packaging Studio' },
+    { prefix: '/', action: 'search-packaging', desc: 'Search packaging specifications and tags', icon: Search, cat: 'Packaging Studio' },
+    { prefix: '/', action: 'recent-packaging-projects', desc: 'Show recently accessed packaging designs', icon: Clock, cat: 'Packaging Studio' },
+    { prefix: '/', action: 'packaging-dashboard', desc: 'Display packaging metrics and dashboard widgets', icon: Layers, cat: 'Packaging Studio' },
+    { prefix: '/', action: 'material-library', desc: 'Open approved packaging materials & dunnage database', icon: RefreshCw, cat: 'Packaging Studio' },
+    { prefix: '/', action: 'create-material', desc: 'Register a new packaging material standard', icon: Plus, cat: 'Packaging Studio' },
+    { prefix: '/', action: 'open-material', desc: 'Open structural material profile datasheet', icon: Box, cat: 'Packaging Studio' },
+    { prefix: '/', action: 'search-material', desc: 'Search physical compounds and material specifications', icon: Search, cat: 'Packaging Studio' },
+    { prefix: '/', action: 'recent-materials', desc: 'List recently checked material specs', icon: Clock, cat: 'Packaging Studio' },
+    { prefix: '/', action: 'favorite-materials', desc: 'Show pinned/bookmarked material standards', icon: Star, cat: 'Packaging Studio' },
+
+    // Decision Intelligence Hub Commands
+    { prefix: '/', action: 'open-decision-intelligence', desc: 'Open Executive Decision Intelligence Hub', icon: Cpu, cat: 'Decision Intelligence' },
+    { prefix: '/', action: 'create-dashboard', desc: 'Register a custom executive steering dashboard', icon: Plus, cat: 'Decision Intelligence' },
+    { prefix: '/', action: 'search-kpi', desc: 'Execute real-time query on strategic KPIs', icon: Search, cat: 'Decision Intelligence' },
+
+    // Digital Thread Commands
+    { prefix: '/', action: 'open-digital-thread', desc: 'Open primary Enterprise Digital Thread Workspace', icon: GitBranch, cat: 'Digital Thread Core' },
+    { prefix: '/', action: 'trace-object', desc: 'Trace an active JNAS engineering or physical object', icon: Search, cat: 'Digital Thread Core' },
+    { prefix: '/', action: 'relationship-explorer', desc: 'Explore connected relationships map in real-time', icon: Network, cat: 'Digital Thread Core' },
+    { prefix: '/', action: 'dependency-viewer', desc: 'Inspect vertical parent-child dependency trees', icon: Layers, cat: 'Digital Thread Core' },
   ];
 
   const filtered = commands.filter(

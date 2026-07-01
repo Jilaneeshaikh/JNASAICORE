@@ -1,0 +1,393 @@
+import { Document } from './types';
+
+export const seedDocuments: Document[] = [
+  {
+    id: 'doc-as9100-manual',
+    title: 'AS9100 Rev D Aerospace Quality Manual',
+    displayName: 'AS9100_RevD_Aerospace_Quality_Manual.pdf',
+    description: 'Master aerospace compliance framework defining quality management guidelines, audit structures, and operational boundaries.',
+    type: 'pdf',
+    category: 'Quality',
+    owner: 'usr-elena',
+    workspace: 'business',
+    project: 'prj-as9100-audit',
+    customer: 'cust-joint-defense',
+    contact: 'con-elena',
+    module: 'Quality',
+    status: 'Released',
+    tags: ['aerospace', 'AS9100', 'quality-manual', 'audit'],
+    permissions: {
+      roles: ['QA Lead', 'Compliance Auditor', 'Administrator'],
+      users: ['usr-operator', 'usr-elena'],
+      departments: ['Quality Assurance', 'Operations']
+    },
+    version: 4,
+    checksum: 'a8f4c2b901e7e4a1122aef9121d51c09',
+    size: 4582104, // 4.3 MB
+    fileExtension: 'pdf',
+    mimeType: 'application/pdf',
+    storageLocation: 'jnas://s3-us-west-2/docs/AS9100_RevD_Aerospace_Quality_Manual.pdf',
+    createdDate: '2026-05-12T09:00:00Z',
+    updatedDate: '2026-06-25T14:30:00Z',
+    archiveStatus: false,
+    softDelete: false,
+    isFavorite: true,
+    author: 'Elena Rostova',
+    department: 'QA Compliance',
+    revision: 'Rev D.4',
+    approvalStatus: 'Approved',
+    confidentiality: 'Confidential',
+    keywords: ['aerospace', 'governance', 'AS9100', 'SGS'],
+    labels: {
+      'SGS-Audit-ID': 'SGS-2026-A12',
+      'Registrar': 'SGS North America'
+    },
+    customProperties: {
+      'RegulatoryAuthority': 'FAA',
+      'NextReviewDate': '2027-05-12'
+    },
+    customerLinks: ['cust-joint-defense'],
+    projectLinks: ['prj-as9100-audit'],
+    contactLinks: ['con-elena'],
+    knowledgeLinks: ['kms-001', 'kms-002'],
+    memoryLinks: ['mem-as9100-01']
+  },
+  {
+    id: 'doc-cad-nozzle-304',
+    title: 'Calibrated Micro-Nozzle Assembly (STEP Metadata)',
+    displayName: 'Micro_Nozzle_Assembly_Calibrated.step',
+    description: 'High-precision micro-nozzle CAD schematic specifying STEP boundaries and laser alignment coordinates.',
+    type: 'cad',
+    category: 'Engineering',
+    owner: 'usr-sarah',
+    workspace: 'engineering',
+    project: 'prj-as9100-audit',
+    customer: 'cust-joint-defense',
+    contact: 'con-sarah',
+    module: 'Engineering',
+    status: 'Approved',
+    tags: ['nozzle', 'CAD', 'STEP', 'hardware'],
+    permissions: {
+      roles: ['Engineer', 'Product Owner', 'Administrator'],
+      users: ['usr-operator', 'usr-sarah'],
+      departments: ['R&D Engineering', 'Operations']
+    },
+    version: 2,
+    checksum: '61a29ffbe8142cc5d77ae2b8a0904d1c',
+    size: 1540918, // 1.4 MB
+    fileExtension: 'step',
+    mimeType: 'application/step',
+    storageLocation: 'jnas://s3-us-west-2/cad/Micro_Nozzle_Assembly_Calibrated.step',
+    createdDate: '2026-06-10T10:15:00Z',
+    updatedDate: '2026-06-20T16:45:00Z',
+    archiveStatus: false,
+    softDelete: false,
+    isFavorite: false,
+    author: 'Sarah Jenkins',
+    department: 'R&D Operations',
+    revision: 'Rev 1.2',
+    approvalStatus: 'Approved',
+    confidentiality: 'StrictlyConfidential',
+    keywords: ['STEP', 'micro-nozzle', 'lasers', 'calibration'],
+    labels: {
+      'MachinePrecision': '0.002mm',
+      'MaterialGrade': 'Titanium Grade 5'
+    },
+    customProperties: {
+      'ThermalRating': '1800C',
+      'DraftingStandard': 'ASME Y14.5'
+    },
+    customerLinks: ['cust-joint-defense'],
+    projectLinks: ['prj-as9100-audit'],
+    contactLinks: ['con-sarah'],
+    knowledgeLinks: ['kms-003'],
+    memoryLinks: []
+  },
+  {
+    id: 'doc-packaging-specs',
+    title: 'ESD-Shielded Component Packaging Specifications',
+    displayName: 'ESD_Shielded_Packaging_Specs.docx',
+    description: 'Procurement-ready specifications outlining physical structures, materials, and drop test bounds for ESD protection.',
+    type: 'word',
+    category: 'Packaging',
+    owner: 'usr-operator',
+    workspace: 'engineering',
+    project: 'prj-as9100-audit',
+    module: 'Packaging',
+    status: 'Review',
+    tags: ['packaging', 'ESD', 'shielding', 'procurement'],
+    permissions: {
+      roles: ['Packaging Designer', 'QA Auditor', 'Procurement Specialist'],
+      users: ['usr-operator'],
+      departments: ['Packaging Design', 'Quality Operations']
+    },
+    version: 1,
+    checksum: '09bc8721adfc9910d54f8b2203ed9a38',
+    size: 2048991, // 1.9 MB
+    fileExtension: 'docx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    storageLocation: 'jnas://s3-us-west-2/packaging/ESD_Shielded_Packaging_Specs.docx',
+    createdDate: '2026-06-18T13:00:00Z',
+    updatedDate: '2026-06-18T13:00:00Z',
+    archiveStatus: false,
+    softDelete: false,
+    isFavorite: true,
+    author: 'System Operator',
+    department: 'Operations',
+    revision: 'Rev A.1',
+    approvalStatus: 'Pending',
+    confidentiality: 'Internal',
+    keywords: ['ESD', 'shielding', 'antistatic', 'cardboard'],
+    labels: {
+      'ShieldingRating': 'MIL-STD-3010',
+      'SupplierRef': 'SUP-PACK-001'
+    },
+    customProperties: {
+      'LayerStructure': '5-Ply Flute',
+      'ConductiveLining': 'Carbon-loaded PET'
+    },
+    customerLinks: [],
+    projectLinks: ['prj-as9100-audit'],
+    contactLinks: [],
+    knowledgeLinks: [],
+    memoryLinks: []
+  },
+  {
+    id: 'doc-sla-joint-defense',
+    title: 'Master Service Level Agreement - JDA Phase 2',
+    displayName: 'Master_SLA_Joint_Defense_Phase2.xlsx',
+    description: 'Active contract ledger mapping critical response parameters, audit schedules, and high-priority milestones for Joint Defense.',
+    type: 'excel',
+    category: 'CRM',
+    owner: 'usr-operator',
+    workspace: 'business',
+    customer: 'cust-joint-defense',
+    module: 'CRM',
+    status: 'Released',
+    tags: ['SLA', 'contract', 'finance', 'Joint-Defense'],
+    permissions: {
+      roles: ['Account Executive', 'Financial Officer', 'Administrator'],
+      users: ['usr-operator'],
+      departments: ['Legal', 'Sales', 'Finance']
+    },
+    version: 3,
+    checksum: '8b7d620ff18247ca88eef014dd55ab91',
+    size: 894102, // 873 KB
+    fileExtension: 'xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    storageLocation: 'jnas://s3-us-west-2/finance/Master_SLA_Joint_Defense_Phase2.xlsx',
+    createdDate: '2026-04-01T10:00:00Z',
+    updatedDate: '2026-06-22T09:15:00Z',
+    archiveStatus: false,
+    softDelete: false,
+    isFavorite: false,
+    author: 'Finance Controller',
+    department: 'Administration',
+    revision: 'Rev 2.0',
+    approvalStatus: 'Approved',
+    confidentiality: 'Secret',
+    keywords: ['SLA', 'milestones', 'Joint-Defense', 'liability'],
+    labels: {
+      'ContractCode': 'CON-JDA-2026',
+      'FinanceReviewer': 'usr-admin-finance'
+    },
+    customProperties: {
+      'MonthlyValue': '$85,000',
+      'PenaltyClause': 'Applicable after 24hr downtime'
+    },
+    customerLinks: ['cust-joint-defense'],
+    projectLinks: ['prj-as9100-audit'],
+    contactLinks: [],
+    knowledgeLinks: [],
+    memoryLinks: []
+  },
+  {
+    id: 'doc-lms-aerospace-safety',
+    title: 'Aerospace Static Discharge Safety (LMS Slides)',
+    displayName: 'Aerospace_Static_Discharge_Safety.pptx',
+    description: 'Training syllabus on static prevention, workbench grounding techniques, and regulatory compliance on assembly lines.',
+    type: 'powerpoint',
+    category: 'LMS',
+    owner: 'usr-operator',
+    workspace: 'learning',
+    module: 'LMS',
+    status: 'Released',
+    tags: ['LMS', 'training', 'safety', 'static-discharge'],
+    permissions: {
+      roles: ['HR Specialist', 'QA Lead', 'Trainee'],
+      users: ['usr-operator'],
+      departments: ['Human Resources', 'Quality Operations']
+    },
+    version: 1,
+    checksum: 'e92bc0c72da8929e008cd61a12df09e2',
+    size: 12480112, // 11.9 MB
+    fileExtension: 'pptx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    storageLocation: 'jnas://s3-us-west-2/learning/Aerospace_Static_Discharge_Safety.pptx',
+    createdDate: '2026-06-05T08:00:00Z',
+    updatedDate: '2026-06-05T08:00:00Z',
+    archiveStatus: false,
+    softDelete: false,
+    isFavorite: false,
+    author: 'System Operator',
+    department: 'Human Resources',
+    revision: 'Rev 1.0',
+    approvalStatus: 'Approved',
+    confidentiality: 'Internal',
+    keywords: ['grounding', 'static', 'assembly', 'OSHA'],
+    labels: {
+      'CourseCode': 'LMS-SAFE-102',
+      'RequiredScore': '90%'
+    },
+    customProperties: {
+      'RecertificationPeriod': '1 Year',
+      'InstructorNeeded': 'Optional'
+    },
+    customerLinks: [],
+    projectLinks: [],
+    contactLinks: [],
+    knowledgeLinks: ['kms-002'],
+    memoryLinks: []
+  },
+  {
+    id: 'doc-procurement-manifest',
+    title: 'Precision Micro-Nozzle Supplier Procurement Bid',
+    displayName: 'Nozzle_Supplier_Procurement_Bid.csv',
+    description: 'Tabulated procurement bid listings for Titanium micro-nozzle elements, comparing bulk prices, lead times, and SLA guarantees.',
+    type: 'csv',
+    category: 'Procurement',
+    owner: 'usr-operator',
+    workspace: 'business',
+    module: 'Procurement',
+    status: 'Draft',
+    tags: ['procurement', 'pricing', 'bids', 'suppliers'],
+    permissions: {
+      roles: ['Procurement Manager', 'Administrator'],
+      users: ['usr-operator'],
+      departments: ['Procurement', 'Finance']
+    },
+    version: 1,
+    checksum: 'ff2d00c3bcae1d99ef87b3a72df9e223',
+    size: 14890, // 14.5 KB
+    fileExtension: 'csv',
+    mimeType: 'text/csv',
+    storageLocation: 'jnas://s3-us-west-2/procurement/Nozzle_Supplier_Procurement_Bid.csv',
+    createdDate: '2026-06-29T11:40:00Z',
+    updatedDate: '2026-06-29T11:40:00Z',
+    archiveStatus: false,
+    softDelete: false,
+    isFavorite: false,
+    author: 'Procurement Specialist',
+    department: 'Finance',
+    revision: 'Rev Alpha 1',
+    approvalStatus: 'Pending',
+    confidentiality: 'Confidential',
+    keywords: ['bids', 'pricing', 'supplier', 'titanium'],
+    labels: {
+      'ProcurementCycle': 'FY26-Q3'
+    },
+    customProperties: {
+      'VendorResponseCount': '3',
+      'TargetApprovalLimit': '$150,000'
+    },
+    customerLinks: [],
+    projectLinks: [],
+    contactLinks: [],
+    knowledgeLinks: [],
+    memoryLinks: []
+  },
+  {
+    id: 'doc-kms-nozzle-notes',
+    title: 'Laser Nozzle Alignment Calibration Guide (Markdown)',
+    displayName: 'Laser_Nozzle_Alignment_Guide.md',
+    description: 'Operational runbook outlining laser triangulation calibration routines for titanium Micro-Nozzle arrays.',
+    type: 'markdown',
+    category: 'Knowledge',
+    owner: 'usr-sarah',
+    workspace: 'engineering',
+    project: 'prj-as9100-audit',
+    module: 'Knowledge',
+    status: 'Released',
+    tags: ['markdown', 'guide', 'nozzle', 'calibration'],
+    permissions: {
+      roles: ['Engineer', 'QA Engineer', 'Administrator'],
+      users: ['usr-operator', 'usr-sarah'],
+      departments: ['R&D Engineering', 'Quality Operations']
+    },
+    version: 5,
+    checksum: '22a1b41ffd9e2188fa90be33d77cc1aa',
+    size: 24500, // 24 KB
+    fileExtension: 'md',
+    mimeType: 'text/markdown',
+    storageLocation: 'jnas://s3-us-west-2/knowledge/Laser_Nozzle_Alignment_Guide.md',
+    createdDate: '2026-06-12T11:00:00Z',
+    updatedDate: '2026-06-28T16:00:00Z',
+    archiveStatus: false,
+    softDelete: false,
+    isFavorite: true,
+    author: 'Sarah Jenkins',
+    department: 'R&D Operations',
+    revision: 'Rev E.2',
+    approvalStatus: 'Approved',
+    confidentiality: 'Internal',
+    keywords: ['laser', 'triangulation', 'nozzle', 'calibration'],
+    labels: {
+      'KmsTopic': 'Precision Manufacturing'
+    },
+    customProperties: {
+      'KmsArticleId': 'kms-003',
+      'CalibrationScope': 'Micro-Arrays Only'
+    },
+    customerLinks: [],
+    projectLinks: ['prj-as9100-audit'],
+    contactLinks: ['con-sarah'],
+    knowledgeLinks: ['kms-003'],
+    memoryLinks: []
+  },
+  {
+    id: 'doc-archived-terms-2025',
+    title: 'Archived General Assembly Specifications (Obsolete)',
+    displayName: 'Obsolete_General_Assembly_Specs_2025.txt',
+    description: 'Deprecated operational runbook for manual assembly lines. Superceded by the AS9100 Quality manual guidelines.',
+    type: 'text',
+    category: 'Administration',
+    owner: 'usr-operator',
+    workspace: 'admin',
+    module: 'Administration',
+    status: 'Deprecated',
+    tags: ['obsolete', 'manual-assembly', 'obsolete-spec'],
+    permissions: {
+      roles: ['Archivist', 'QA Auditor', 'Administrator'],
+      users: ['usr-operator'],
+      departments: ['Operations']
+    },
+    version: 1,
+    checksum: '3a3d2e11dfbc9910d54f8b2203ed9a01',
+    size: 154000, // 150 KB
+    fileExtension: 'txt',
+    mimeType: 'text/plain',
+    storageLocation: 'jnas://s3-us-west-2/archive/Obsolete_General_Assembly_Specs_2025.txt',
+    createdDate: '2025-01-15T09:00:00Z',
+    updatedDate: '2025-11-20T10:00:00Z',
+    archiveStatus: true,
+    softDelete: false,
+    isFavorite: false,
+    author: 'Old Operator',
+    department: 'Operations',
+    revision: 'Rev Obsolete',
+    approvalStatus: 'Approved',
+    confidentiality: 'Unclassified',
+    keywords: ['obsolete', '2025', 'assembly'],
+    labels: {
+      'LegacyRef': 'LEG-2025-01'
+    },
+    customProperties: {
+      'SupercededBy': 'doc-as9100-manual'
+    },
+    customerLinks: [],
+    projectLinks: [],
+    contactLinks: [],
+    knowledgeLinks: [],
+    memoryLinks: []
+  }
+];

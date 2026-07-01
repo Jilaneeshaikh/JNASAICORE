@@ -1,730 +1,1079 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Sliders, 
-  Menu, 
-  X, 
-  Sparkles, 
-  Search, 
-  Terminal, 
-  Layers, 
-  RotateCcw, 
-  ChevronRight, 
-  Info,
+import {
+  Sparkles,
+  Search,
+  Sliders,
   Maximize2,
   Minimize2,
-  FileText
+  Cpu,
+  Trash2,
+  FolderDot,
+  UserCheck,
+  Bookmark,
+  Share2,
+  Compass,
+  Database,
+  Layers,
+  Activity,
+  Terminal,
+  HelpCircle,
+  FileCode,
+  AlertTriangle,
+  PlayCircle,
+  Plus,
+  Send,
+  Eye,
+  Info,
+  ExternalLink,
+  ChevronRight,
+  Clock,
+  Pin,
+  Star,
+  CheckCircle,
+  FileText,
+  User,
+  RefreshCw,
+  FolderOpen,
+  DollarSign
 } from 'lucide-react';
+
 import { useNotification } from '../contexts/NotificationContext';
 import { useSettings } from '../contexts/SettingsContext';
+import { useAuth } from '../contexts/AuthContext';
+import { eventBus } from '../core';
 
-// Import Custom Framework components
-import { Conversation, Message, Attachment, PromptTemplate, ChatSettings } from '../types/chat';
-import { INITIAL_CONVERSATIONS, PROMPT_LIBRARY, DEFAULT_SETTINGS } from '../data/chatMockData';
-import { ChatSidebar } from '../components/chat/ChatSidebar';
-import { ChatMessageList } from '../components/chat/ChatMessageList';
-import { ChatPromptEditor } from '../components/chat/ChatPromptEditor';
-import { ChatStatusPanel } from '../components/chat/ChatStatusPanel';
-import { ChatPromptLibrary } from '../components/chat/ChatPromptLibrary';
-import { ChatSettingsDialog } from '../components/chat/ChatSettingsDialog';
+import { sessionRegistry } from '../backend/ai/sessionRegistry';
+import { contextBuilder } from '../backend/ai/contextBuilder';
+import { promptComposer } from '../backend/ai/promptComposer';
+import { responseInspector } from '../backend/ai/responseInspector';
+import { toolRegistry } from '../backend/ai/toolRegistry';
+import { AISession, AIResponseMeta, ContextItem } from '../backend/ai/types';
+import { PromptLayers } from '../backend/ai/promptComposer';
 
 import { DSBadge, DSAlert } from '../components/design-system/DSStatus';
 import { DSButton } from '../components/design-system/DSButton';
-
-const STORAGE_CHATS_KEY = 'jnas-ai-chats-v4';
-const STORAGE_SETTINGS_KEY = 'jnas-ai-settings-v4';
+import { DSCard, DSCardContent } from '../components/design-system/DSCard';
 
 export const AICorePage: React.FC = () => {
   const { triggerToast } = useNotification();
-  const { settings: globalSettings } = useSettings();
+  const { settings, updateSetting } = useSettings();
+  const { user } = useAuth();
 
-  // Local Chat and Settings States
-  const [conversations, setConversations] = useState<Conversation[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_CHATS_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to parse conversations', e);
-    }
-    return INITIAL_CONVERSATIONS;
-  });
+  // Active Session and List States
+  const [sessions, setSessions] = useState<AISession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
 
-  const [chatSettings, setChatSettings] = useState<ChatSettings>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_SETTINGS_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to parse settings', e);
-    }
-    return DEFAULT_SETTINGS;
-  });
-
-  const [activeChatId, setActiveChatId] = useState<string | null>(() => {
-    const activeChats = INITIAL_CONVERSATIONS.filter(c => c.status === 'active');
-    return activeChats.length > 0 ? activeChats[0].id : null;
-  });
-
-  // UI state toggles
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isStatusDockOpen, setIsStatusDockOpen] = useState(true);
-  const [isPromptLibraryOpen, setIsPromptLibraryOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isFullScreen, setIsFullScreen] = useState(false);
+  // Input states
+  const [promptText, setPromptText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [streamContent, setStreamContent] = useState('');
 
-  // Sync to local storage on mutation
+  // UI Panels states
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isInspectorOpen, setIsInspectorOpen] = useState(true);
+  const [activeInspectorTab, setActiveInspectorTab] = useState<'context' | 'composer' | 'tools'>('context');
+  const [isResponseInspectorOpen, setIsResponseInspectorOpen] = useState(false);
+  const [activeResponseMeta, setActiveResponseMeta] = useState<AIResponseMeta | null>(null);
+  
+  // Custom execution properties
+  const [activeProvider, setActiveProvider] = useState('gemini');
+  const [temperature, setTemperature] = useState(0.5);
+
+  // Scroll anchor ref
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load and refresh sessions list
+  const refreshSessions = () => {
+    const list = sessionRegistry.getSessions();
+    setSessions(list);
+    if (list.length > 0 && !activeSessionId) {
+      setActiveSessionId(list[0].id);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem(STORAGE_CHATS_KEY, JSON.stringify(conversations));
-  }, [conversations]);
+    refreshSessions();
 
+    // Listen to command center events
+    const subNewSession = eventBus.subscribe('CMD_NEW_SESSION', () => handleNewSession());
+    const subRefreshContext = eventBus.subscribe('CMD_REFRESH_CONTEXT', () => {
+      triggerToast('success', 'Ecosystem dynamic context refreshed.');
+      refreshSessions();
+    });
+    const subOpenInspector = eventBus.subscribe('CMD_OPEN_CONTEXT_INSPECTOR', () => {
+      setIsInspectorOpen(true);
+      setActiveInspectorTab('context');
+    });
+
+    return () => {
+      subNewSession.unsubscribe();
+      subRefreshContext.unsubscribe();
+      subOpenInspector.unsubscribe();
+    };
+  }, []);
+
+  // Sync scroll on conversation growth
   useEffect(() => {
-    localStorage.setItem(STORAGE_SETTINGS_KEY, JSON.stringify(chatSettings));
-  }, [chatSettings]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [sessions, streamContent, isStreaming]);
 
-  // Active chat finder
-  const activeChat = conversations.find(c => c.id === activeChatId) || null;
+  // Active Session Object
+  const activeSession = sessions.find(s => s.id === activeSessionId) || null;
 
-  // New Chat session setup
-  const handleNewChat = (category: any = 'General') => {
-    const newChatId = `chat-${Date.now()}`;
-    const newChat: Conversation = {
-      id: newChatId,
-      title: `Unnamed Thread Session #${conversations.length + 1}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      favorite: false,
-      pinned: false,
-      category: category,
-      project: 'JNAS Core Pipeline',
-      workspace: globalSettings.activeWorkspace || 'personal',
-      tags: ['workspace-dispatch', category.toLowerCase()],
-      status: 'active',
-      messages: [
-        {
-          id: `msg-${Date.now()}-1`,
-          role: 'system',
-          content: 'System Clearance Active. Awaiting dispatch queries...',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: 'done'
-        }
-      ]
-    };
+  // Gather live runtime context from other modules
+  const currentContext = contextBuilder.gatherContext(
+    settings.activeWorkspace,
+    'ai-core',
+    user
+  );
 
-    setConversations(prev => [newChat, ...prev]);
-    setActiveChatId(newChatId);
-    triggerToast('success', `Initialized new ${category} conversation channel!`);
+  // Dynamic context items list with individual toggle states
+  const contextItems = contextBuilder.getContextItems(settings.activeWorkspace, 'ai-core');
+
+  // Multi-tier compiled prompt layers based on active state and input
+  const promptLayers = promptComposer.composeLayers(
+    promptText || '[Awaiting query input]',
+    currentContext,
+    activeSession ? activeSession.messages.map(m => ({ role: m.role, content: m.content })) : []
+  );
+  const compiledFinalPrompt = promptComposer.compileFinalPrompt(promptLayers);
+  const estimatedTokens = contextBuilder.estimateTokenCount(compiledFinalPrompt);
+
+  // Handle New AI Session Creation
+  const handleNewSession = (title?: string) => {
+    const defaultTitle = `Intel Thread #${sessions.length + 1}`;
+    const newSession = sessionRegistry.createSession({
+      title: title || defaultTitle,
+      workspace: settings.activeWorkspace,
+      category: settings.activeWorkspace === 'engineering' ? 'Engineering R&D' : 'General Operations',
+      providerId: activeProvider,
+      temperature: temperature
+    });
+    refreshSessions();
+    setActiveSessionId(newSession.id);
+    setPromptText('');
+    triggerToast('success', `Initialized AI Session: "${newSession.title}"`);
   };
 
-  // Conversation Actions
-  const handleRenameChat = (id: string, newTitle: string) => {
-    setConversations(prev => prev.map(c => 
-      c.id === id ? { ...c, title: newTitle, updatedAt: new Date().toISOString() } : c
-    ));
-    triggerToast('success', 'Thread channel updated successfully.');
+  // Toggle Favorite
+  const handleToggleFavorite = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    sessionRegistry.toggleFavorite(id);
+    refreshSessions();
+    triggerToast('success', 'Session saved to favorites.');
   };
 
-  const handleDeleteChat = (id: string) => {
-    setConversations(prev => prev.filter(c => c.id !== id));
-    if (activeChatId === id) {
-      const remaining = conversations.filter(c => c.id !== id && c.status === 'active');
-      setActiveChatId(remaining.length > 0 ? remaining[0].id : null);
+  // Toggle Pin Status (Archived / Active)
+  const handleArchiveSession = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const s = sessionRegistry.getSession(id);
+    if (!s) return;
+    const nextStatus = s.status === 'active' ? 'archived' : 'active';
+    sessionRegistry.setStatus(id, nextStatus);
+    refreshSessions();
+    triggerToast('success', nextStatus === 'archived' ? 'AI Session archived.' : 'AI Session restored to active.');
+  };
+
+  // Delete AI Session
+  const handleDeleteSession = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    sessionRegistry.deleteSession(id);
+    if (activeSessionId === id) {
+      setActiveSessionId(null);
     }
-    triggerToast('success', 'Conversation thread permanently purged.');
+    refreshSessions();
+    triggerToast('success', 'AI Session permanently deleted.');
   };
 
-  const handleArchiveChat = (id: string) => {
-    setConversations(prev => prev.map(c => {
-      if (c.id === id) {
-        const nextStatus = c.status === 'active' ? 'archived' : 'active';
-        triggerToast('success', nextStatus === 'archived' ? 'Thread archived.' : 'Thread restored to active.');
-        return { ...c, status: nextStatus, updatedAt: new Date().toISOString() };
-      }
-      return c;
-    }));
+  // Rename Session title
+  const handleRenameSession = (id: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+    sessionRegistry.updateSession(id, { title: newTitle });
+    refreshSessions();
   };
 
-  const handlePinChat = (id: string) => {
-    setConversations(prev => prev.map(c => {
-      if (c.id === id) {
-        triggerToast('info', c.pinned ? 'Channel unpinned.' : 'Channel pinned to top workspace nodes.');
-        return { ...c, pinned: !c.pinned };
-      }
-      return c;
-    }));
-  };
+  // Send Prompt with full SSE-Style streaming and non-streaming fallback
+  const handleSendPrompt = async () => {
+    if (!activeSessionId || !promptText.trim() || isStreaming) return;
 
-  const handleFavoriteChat = (id: string) => {
-    setConversations(prev => prev.map(c => {
-      if (c.id === id) {
-        triggerToast('success', c.favorite ? 'Removed from starred favorites.' : 'Channel starred as favorite!');
-        return { ...c, favorite: !c.favorite };
-      }
-      return c;
-    }));
-  };
+    const userQuery = promptText;
+    setPromptText('');
 
-  // Settings handlers
-  const handleUpdateSettings = (updated: Partial<ChatSettings>) => {
-    setChatSettings(prev => ({ ...prev, ...updated }));
-    triggerToast('success', 'Engine constraints synchronized.');
-  };
-
-  // Export chats
-  const handleExportChats = () => {
-    try {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(conversations, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", "jnas-ai-thread-backup.json");
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-      triggerToast('success', 'Successfully compiled and downloaded conversation backup.');
-    } catch (e) {
-      triggerToast('error', 'Failed to compile conversations backup.');
-    }
-  };
-
-  // Import chats
-  const handleImportChats = (importedData: any) => {
-    if (Array.isArray(importedData)) {
-      setConversations(importedData);
-      if (importedData.length > 0) {
-        setActiveChatId(importedData[0].id);
-      }
-      triggerToast('success', 'Thread restoration completely loaded.');
-    } else {
-      triggerToast('error', 'Import failed: Schema is not in compatible array format.');
-    }
-  };
-
-  // Load blueprint prompt template
-  const handleSelectTemplate = (template: PromptTemplate) => {
-    triggerToast('info', `Injected prompt blueprint: "${template.title}"`);
-    setIsPromptLibraryOpen(false);
-  };
-
-  // Live Response Engine connecting to Provider Gateway API
-  const handleSendMessage = async (userText: string, attachments: Attachment[]) => {
-    if (!activeChatId || isStreaming) return;
-
-    const userMsg: Message = {
-      id: `msg-usr-${Date.now()}`,
-      role: 'user',
-      content: userText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'done',
-      attachments: attachments
-    };
-
-    // 1. Append user message to active thread
-    setConversations(prev => prev.map(c => {
-      if (c.id === activeChatId) {
-        return {
-          ...c,
-          messages: [...c.messages, userMsg],
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return c;
-    }));
+    // Append User Message Locally
+    const userMsg = { role: 'user' as const, content: userQuery };
+    const updatedMessages = [...(activeSession?.messages || []), userMsg];
+    sessionRegistry.updateSession(activeSessionId, { messages: updatedMessages });
+    refreshSessions();
 
     setIsStreaming(true);
+    setStreamContent('');
 
-    const loadingMsgId = `msg-load-${Date.now()}`;
-    const loadingMsg: Message = {
-      id: loadingMsgId,
-      role: 'assistant',
-      content: 'Routing operational query to Provider Gateway...',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'loading'
-    };
+    const startTime = Date.now();
 
-    setConversations(prev => prev.map(c => {
-      if (c.id === activeChatId) {
-        return { ...c, messages: [...c.messages, loadingMsg] };
-      }
-      return c;
-    }));
-
-    // Simple provider display name to registered system ID mapper
-    const mapProviderId = (providerName: string): string => {
-      const name = providerName.toLowerCase();
-      if (name.includes('gemini')) return 'gemini';
-      if (name.includes('openai') || name.includes('gpt')) return 'openai';
-      if (name.includes('anthropic') || name.includes('claude')) return 'anthropic';
-      if (name.includes('ollama') || name.includes('llama')) return 'ollama';
-      if (name.includes('deepseek')) return 'ollama'; // Route deepseek reasoning to local ollama structure
-      return 'gemini';
-    };
-
-    const providerId = mapProviderId(chatSettings.defaultProvider);
-    
-    // Build context messages from history (excluding system messages)
-    const activeMessages = activeChat ? activeChat.messages.filter(m => m.role !== 'system') : [];
-    // Convert base64 / attachment fields cleanly
-    const payloadMessages = [
-      ...activeMessages.map(m => ({
-        role: m.role,
-        content: m.content,
-        attachments: m.attachments?.map(att => ({
-          id: att.id,
-          name: att.name,
-          mimeType: att.type === 'img' ? 'image/png' : 'application/pdf',
-          base64Data: att.id // Use id placeholder or mock data if uploaded
-        }))
-      })),
-      {
-        role: 'user',
-        content: userText,
-        attachments: attachments.map(att => ({
-          id: att.id,
-          name: att.name,
-          mimeType: att.type === 'img' ? 'image/png' : 'application/pdf',
-          base64Data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' // Transparent 1x1 base64 pixel fallback for testing multimodal
-        }))
-      }
-    ];
+    // Compile active prompt configuration
+    const activeSystemInstruction = `You are the JNAS Enterprise Co-Pilot operating in workspace: ${settings.activeWorkspace.toUpperCase()}. Aligned to context guidelines.`;
 
     try {
-      if (chatSettings.streaming) {
-        // SSE Token-Streaming Handshake
-        const response = await fetch('/api/ai/chat/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            providerId,
-            messages: payloadMessages,
-            temperature: chatSettings.temperature,
-            maxTokens: chatSettings.maxTokens,
-            safetyLevel: chatSettings.safetyLevel,
-            systemInstruction: 'You are JNAS AI Orchestration Terminal Core. Be highly helpful, precise, technical, and professional.'
-          }),
-        });
+      // Dispatch server SSE streaming request
+      const response = await fetch('/api/ai/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: activeProvider,
+          messages: updatedMessages,
+          temperature,
+          maxTokens: 2048,
+          systemInstruction: activeSystemInstruction
+        })
+      });
 
-        if (!response.ok) {
-          const errorPayload = await response.json().catch(() => ({ error: 'Streaming initiation failed.' }));
-          throw new Error(errorPayload.error || `HTTP error ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`SSE handshaking error: Status ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder('utf-8');
+
+      if (!reader) {
+        throw new Error('SSE Stream reading unsupported by environment container.');
+      }
+
+      let completeReply = '';
+      let done = false;
+
+      // Publish dynamic send event
+      eventBus.publish('AI_PROMPT_SENT', { sessionId: activeSessionId, promptText: userQuery, estimatedTokens }, { emitter: 'AIWorkspace' });
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        if (readerDone) {
+          done = true;
+          break;
         }
 
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let hasTransitedFromLoading = false;
-
-        if (reader) {
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || ''; // Keep incomplete line
-
-            for (const line of lines) {
-              const cleanLine = line.trim();
-              if (cleanLine.startsWith('data: ')) {
-                const jsonStr = cleanLine.slice(6).trim();
-                if (!jsonStr) continue;
-
-                try {
-                  const parsed = JSON.parse(jsonStr);
-                  
-                  if (parsed.error) {
-                    throw new Error(parsed.error);
-                  }
-
-                  if (parsed.done) {
-                    break;
-                  }
-
-                  const tokenText = parsed.text || '';
-                  if (tokenText) {
-                    if (!hasTransitedFromLoading) {
-                      hasTransitedFromLoading = true;
-                      // Convert from Loading to active Stream content
-                      setConversations(prev => prev.map(c => {
-                        if (c.id === activeChatId) {
-                          return {
-                            ...c,
-                            messages: c.messages.map(m => {
-                              if (m.id === loadingMsgId) {
-                                return { ...m, content: tokenText, status: 'streaming' as const };
-                              }
-                              return m;
-                            })
-                          };
-                        }
-                        return c;
-                      }));
-                    } else {
-                      // Append incremental tokens
-                      setConversations(prev => prev.map(c => {
-                        if (c.id === activeChatId) {
-                          return {
-                            ...c,
-                            messages: c.messages.map(m => {
-                              if (m.id === loadingMsgId) {
-                                return { ...m, content: m.content + tokenText };
-                              }
-                              return m;
-                            })
-                          };
-                        }
-                        return c;
-                      }));
-                    }
-                  }
-                } catch (jsonErr: any) {
-                  console.error('Error parsing SSE json line:', jsonErr);
-                }
+        const chunkText = decoder.decode(value, { stream: true });
+        // Server SSE streams events prefixed with 'data: '
+        const lines = chunkText.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.substring(6));
+              if (data.done) {
+                done = true;
+              } else if (data.text) {
+                completeReply += data.text;
+                setStreamContent(completeReply);
+              } else if (data.error) {
+                throw new Error(data.error);
               }
+            } catch (e) {
+              // Ignore partial chunk parsers
             }
           }
         }
+      }
 
-        // Complete streaming session successfully
-        setConversations(prev => prev.map(c => {
-          if (c.id === activeChatId) {
-            return {
-              ...c,
-              messages: c.messages.map(m => {
-                if (m.id === loadingMsgId) {
-                  return { ...m, status: 'done' as const };
-                }
-                return m;
-              })
-            };
-          }
-          return c;
-        }));
-        triggerToast('success', 'Operational response stream finalized successfully.');
+      // Finalize message append
+      const assistantMsg = { role: 'assistant' as const, content: completeReply };
+      const finalMsgList = [...updatedMessages, assistantMsg];
+      
+      // Calculate response inspect details
+      const latency = Date.now() - startTime;
+      const inspectMeta = responseInspector.analyzeResponse(
+        completeReply,
+        compiledFinalPrompt.length,
+        latency,
+        activeProvider,
+        currentContext
+      );
 
-      } else {
-        // Non-streaming standard REST handshake
-        const response = await fetch('/api/ai/chat', {
+      sessionRegistry.updateSession(activeSessionId, { 
+        messages: finalMsgList,
+        providerId: activeProvider,
+        temperature
+      });
+
+      refreshSessions();
+      setActiveResponseMeta(inspectMeta);
+      setIsResponseInspectorOpen(true);
+
+      // Publish audit telemetry
+      eventBus.publish('AI_RESPONSE_GENERATED', { 
+        sessionId: activeSessionId, 
+        tokensUsed: inspectMeta.inputTokens + inspectMeta.outputTokens, 
+        latencyMs: latency, 
+        providerId: activeProvider 
+      }, { emitter: 'AIWorkspace' });
+
+    } catch (err: any) {
+      console.error('[AIWorkspace] Generation error:', err);
+      // Fallback: non-streaming dispatch
+      try {
+        const fallbackRes = await fetch('/api/ai/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            providerId,
-            messages: payloadMessages,
-            temperature: chatSettings.temperature,
-            maxTokens: chatSettings.maxTokens,
-            safetyLevel: chatSettings.safetyLevel,
-            systemInstruction: 'You are JNAS AI Orchestration Terminal Core. Be highly helpful, precise, technical, and professional.'
-          }),
+            providerId: activeProvider,
+            messages: updatedMessages,
+            temperature,
+            maxTokens: 2048,
+            systemInstruction: activeSystemInstruction
+          })
         });
 
-        const data = await response.json();
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || `HTTP error ${response.status}`);
+        const fallbackData = await fallbackRes.json();
+        if (fallbackData.success && fallbackData.response) {
+          const content = fallbackData.response.content;
+          const assistantMsg = { role: 'assistant' as const, content };
+          sessionRegistry.updateSession(activeSessionId, { messages: [...updatedMessages, assistantMsg] });
+          refreshSessions();
+
+          const inspectMeta = responseInspector.analyzeResponse(
+            content,
+            compiledFinalPrompt.length,
+            Date.now() - startTime,
+            activeProvider,
+            currentContext
+          );
+          setActiveResponseMeta(inspectMeta);
+          setIsResponseInspectorOpen(true);
+        } else {
+          throw new Error(fallbackData.error || 'Server rejected non-streaming execution.');
         }
-
-        const replyContent = data.response?.content || '';
-
-        setConversations(prev => prev.map(c => {
-          if (c.id === activeChatId) {
-            return {
-              ...c,
-              messages: c.messages.map(m => {
-                if (m.id === loadingMsgId) {
-                  return { ...m, content: replyContent, status: 'done' as const };
-                }
-                return m;
-              })
-            };
-          }
-          return c;
-        }));
-        triggerToast('success', 'Response compiled and synced successfully.');
+      } catch (fallbackErr: any) {
+        triggerToast('error', `Model Service Failure: ${fallbackErr.message || err.message}`);
+        // Append error notice in chat log
+        const errorNoticeMsg = { 
+          role: 'assistant' as const, 
+          content: `⚠️ **AI GATEWAY TRANSACTION REFUSED**\n\nFailed to establish connection to model gateway:\n\`${fallbackErr.message || err.message}\`\n\nEnsure that \`GEMINI_API_KEY\` is fully declared and authorized.` 
+        };
+        sessionRegistry.updateSession(activeSessionId, { messages: [...updatedMessages, errorNoticeMsg] });
+        refreshSessions();
       }
-    } catch (err: any) {
-      console.error('Gateway request execution exception:', err);
-      
-      let errorText = `Failed to process operational query.\n\n[Gateway Error Detail]:\n${err.message || 'Unknown network trace interruption.'}`;
-      let statusType: 'warning' | 'error' = 'error';
-
-      if (err.message?.includes('GEMINI_API_KEY') || err.message?.includes('API Key') || err.message?.includes('key')) {
-        errorText = `🔒 SECURITY ERROR: Gemini Provider API key credentials are missing or invalid.\n\nVerify that process.env.GEMINI_API_KEY is correctly defined in your Settings > Secrets panel on Google AI Studio to unlock full provider capabilities.`;
-        statusType = 'warning';
-      }
-
-      setConversations(prev => prev.map(c => {
-        if (c.id === activeChatId) {
-          return {
-            ...c,
-            messages: c.messages.map(m => {
-              if (m.id === loadingMsgId) {
-                return { 
-                  ...m, 
-                  content: errorText, 
-                  status: statusType as any
-                };
-              }
-              return m;
-            })
-          };
-        }
-        return c;
-      }));
-      triggerToast('error', 'Gateway transaction execution failed.');
     } finally {
       setIsStreaming(false);
+      setStreamContent('');
     }
   };
 
-  const activeWorkspace = globalSettings.activeWorkspace || 'personal';
+  // Keyboard shortcut for Cmd/Ctrl + Enter
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSendPrompt();
+    }
+  };
+
+  // Filter sessions by query & category tab
+  const filteredSessions = sessions.filter(s => {
+    const matchesSearch = s.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          s.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    if (activeCategoryFilter === 'favorites') {
+      return matchesSearch && s.favorite;
+    }
+    if (activeCategoryFilter === 'archived') {
+      return matchesSearch && s.status === 'archived';
+    }
+    if (activeCategoryFilter !== 'all') {
+      return matchesSearch && s.category.toLowerCase().includes(activeCategoryFilter.toLowerCase());
+    }
+    return matchesSearch && s.status === 'active';
+  });
 
   return (
-    <div className={`space-y-6 ${isFullScreen ? 'fixed inset-0 bg-slate-950 z-50 p-6 overflow-y-auto' : ''}`}>
+    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-[#07090E] text-slate-100">
       
-      {/* A. Header / Status Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-900 pb-5">
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-slate-900 px-2 py-0.5 border border-slate-800 text-slate-400">
-              JNAS AI Platform
-            </span>
-            <ChevronRight className="w-3 h-3 text-slate-700" />
-            <span className="text-xs text-cyan-400 font-semibold font-mono capitalize">
-              {activeWorkspace} Channel Connected
-            </span>
-          </div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-100 font-sans mt-1">
-            Enterprise AI Chat Framework
-          </h1>
-          <p className="text-xs text-slate-400 leading-normal max-w-xl">
-            Modular multi-provider interface mock. Ready for live API pipeline couplings in Sprint 5.
-          </p>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <DSButton
-            variant="outline"
-            size="sm"
-            onClick={() => setIsPromptLibraryOpen(!isPromptLibraryOpen)}
-            className="font-semibold text-xs border-slate-800 hover:border-cyan-500/30"
-          >
-            Prompt Blueprint Library
-          </DSButton>
-
-          <DSButton
-            variant="outline"
-            size="sm"
-            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            className="font-semibold text-xs border-slate-800 hover:border-cyan-500/30 font-mono"
-          >
-            Engine Parameters
-          </DSButton>
-
-          <button
-            onClick={() => setIsFullScreen(!isFullScreen)}
-            className="p-2 bg-slate-950 hover:bg-slate-900 border border-slate-900 rounded cursor-pointer transition-colors text-slate-400 hover:text-white"
-            title={isFullScreen ? 'Exit Full Screen' : 'Enter Full Screen'}
-          >
-            {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
-        </div>
-      </div>
-
-      {/* B. Alerts / Banner info */}
-      <DSAlert type="success" title="SPRINT 5 ACTIVE: LIVE PROVIDER GATEWAY SHIELD">
-        Gateway is fully operational. Select your active engine parameter constraints, safety levels, and monitor latency metrics from the telemetry panel on the right.
-      </DSAlert>
-
-      {/* C. Interactive Modals Overlays (AnimatePresence) */}
-      <AnimatePresence>
-        {isPromptLibraryOpen && (
+      {/* 1. SESSION SIDEBAR */}
+      <AnimatePresence initial={false}>
+        {isSidebarOpen && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="z-40"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 310, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            className="h-full bg-[#0B0E14] border-r border-[#151B26] flex flex-col shrink-0 overflow-hidden"
           >
-            <ChatPromptLibrary 
-              templates={PROMPT_LIBRARY} 
-              onSelectTemplate={(tpl) => {
-                handleSelectTemplate(tpl);
-              }}
-              onClose={() => setIsPromptLibraryOpen(false)}
-            />
+            {/* Sidebar Search */}
+            <div className="p-4 border-b border-[#151B26] space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Bookmark className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs font-mono font-bold tracking-widest text-slate-300">
+                    INTEL SESSION REPO
+                  </span>
+                </div>
+                <DSButton
+                  size="sm"
+                  variant="primary"
+                  onClick={() => handleNewSession()}
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                >
+                  New Thread
+                </DSButton>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search Sessions or Tags..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#121824] border border-[#1C2638] rounded p-2 pl-9 text-xs font-mono text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
+                />
+              </div>
+            </div>
+
+            {/* Faceted Filters */}
+            <div className="px-3 py-2 bg-[#090C12] border-b border-[#151B26] flex gap-1 overflow-x-auto text-[10px] font-mono scrollbar-none">
+              <button
+                onClick={() => setActiveCategoryFilter('all')}
+                className={`px-2.5 py-1 rounded transition-colors whitespace-nowrap ${
+                  activeCategoryFilter === 'all' ? 'bg-cyan-950/40 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                All Threads
+              </button>
+              <button
+                onClick={() => setActiveCategoryFilter('favorites')}
+                className={`px-2.5 py-1 rounded transition-colors whitespace-nowrap flex items-center gap-1 ${
+                  activeCategoryFilter === 'favorites' ? 'bg-cyan-950/40 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Star className="w-3 h-3 text-amber-400 fill-amber-400/20" /> Favorites
+              </button>
+              <button
+                onClick={() => setActiveCategoryFilter('engineering')}
+                className={`px-2.5 py-1 rounded transition-colors whitespace-nowrap ${
+                  activeCategoryFilter === 'engineering' ? 'bg-cyan-950/40 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Engineering
+              </button>
+              <button
+                onClick={() => setActiveCategoryFilter('archived')}
+                className={`px-2.5 py-1 rounded transition-colors whitespace-nowrap ${
+                  activeCategoryFilter === 'archived' ? 'bg-cyan-950/40 text-cyan-400 border border-cyan-500/20' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Archived
+              </button>
+            </div>
+
+            {/* Sessions List */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {filteredSessions.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 font-mono text-[11px] space-y-2">
+                  <Compass className="w-6 h-6 mx-auto text-slate-600 animate-pulse" />
+                  <div>No threads mapped under active criteria.</div>
+                </div>
+              ) : (
+                filteredSessions.map((s) => {
+                  const isActive = s.id === activeSessionId;
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => setActiveSessionId(s.id)}
+                      className={`group relative p-3 rounded border text-left transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-[#121926]/80 border-cyan-500/30 text-slate-100 shadow-[0_0_12px_rgba(6,182,212,0.05)]'
+                          : 'bg-[#0E131F]/30 border-transparent text-slate-400 hover:bg-[#0E131F]/60 hover:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="text-xs font-semibold truncate max-w-[190px]">
+                          {s.title}
+                        </div>
+                        
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => handleToggleFavorite(s.id, e)}
+                            className="text-slate-500 hover:text-amber-400 p-0.5 rounded"
+                          >
+                            <Star className={`w-3.5 h-3.5 ${s.favorite ? 'text-amber-400 fill-amber-400/20' : ''}`} />
+                          </button>
+                          <button
+                            onClick={(e) => handleArchiveSession(s.id, e)}
+                            className="text-slate-500 hover:text-cyan-400 p-0.5 rounded"
+                          >
+                            <FolderDot className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteSession(s.id, e)}
+                            className="text-slate-500 hover:text-red-400 p-0.5 rounded"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-1.5 flex flex-wrap gap-1 items-center justify-between text-[9px] font-mono">
+                        <span className="text-[10px] text-cyan-500 uppercase tracking-widest text-[8px] font-semibold">
+                          {s.category}
+                        </span>
+                        
+                        <div className="flex items-center gap-1 text-slate-500">
+                          <Clock className="w-2.5 h-2.5" />
+                          {new Date(s.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        </div>
+                      </div>
+
+                      {/* Tags */}
+                      {s.tags && s.tags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {s.tags.slice(0, 3).map(tag => (
+                            <span key={tag} className="px-1 py-0.5 bg-slate-900 border border-slate-800 text-slate-400 text-[8px] rounded uppercase font-mono">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* User details footer */}
+            {user && (
+              <div className="p-4 border-t border-[#151B26] bg-[#090C12] flex items-center gap-2.5 text-left">
+                <div className="w-8 h-8 rounded border border-[#1C2638] bg-[#121824] flex items-center justify-center font-mono text-xs text-cyan-400 overflow-hidden font-bold">
+                  {user.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0 font-mono">
+                  <div className="text-xs font-bold text-slate-300 truncate">{user.name}</div>
+                  <div className="text-[9px] text-slate-500 tracking-wider uppercase truncate">{user.role}</div>
+                </div>
+                <div className="text-[10px] text-green-400 animate-pulse font-mono flex items-center gap-1">
+                  ● ACTIVE
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {isSettingsOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="z-40"
-          >
-            <ChatSettingsDialog 
-              settings={chatSettings}
-              onUpdateSettings={handleUpdateSettings}
-              onClose={() => setIsSettingsOpen(false)}
-              onExport={handleExportChats}
-              onImport={handleImportChats}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* D. Main Workspace Split View Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 border border-slate-900 bg-slate-950 rounded-sm overflow-hidden h-[620px] shadow-2xl relative">
+      {/* 2. CHAT CANVAS AREA */}
+      <div className="flex-1 flex flex-col min-w-0 bg-[#07090E]">
         
-        {/* Toggle controls to slide sidebar or telemetry docks back in on Tablet/Mobile */}
-        <div className="absolute top-2.5 left-2.5 z-30 flex items-center gap-1.5 lg:hidden">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-1.5 bg-slate-950 border border-slate-850 rounded text-slate-400 hover:text-white cursor-pointer shadow-lg"
-          >
-            <Menu className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* 1. Chat Sidebar Section (Span 3) */}
-        <div className={`lg:col-span-3 h-full border-r border-slate-900 transition-all duration-300 absolute lg:relative inset-y-0 left-0 z-40 w-72 lg:w-auto ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-          <div className="h-full relative">
-            <ChatSidebar
-              conversations={conversations}
-              activeChatId={activeChatId}
-              onSelectChat={(id) => {
-                setActiveChatId(id);
-                // Collapse sidebar on Mobile upon selection
-                if (window.innerWidth < 1024) setIsSidebarOpen(false);
-              }}
-              onNewChat={handleNewChat}
-              onRenameChat={handleRenameChat}
-              onDeleteChat={handleDeleteChat}
-              onArchiveChat={handleArchiveChat}
-              onPinChat={handlePinChat}
-              onFavoriteChat={handleFavoriteChat}
-            />
-            
-            {/* Close control for mobile drawer */}
+        {/* Workspace Header */}
+        <div className="h-14 px-5 border-b border-[#151B26] bg-[#090C12] flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsSidebarOpen(false)}
-              className="absolute top-3.5 right-3 lg:hidden p-1 bg-slate-900 hover:bg-slate-800 rounded text-slate-500 hover:text-slate-200 cursor-pointer"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="text-slate-400 hover:text-slate-200 cursor-pointer"
             >
-              <X className="w-3.5 h-3.5" />
+              <Terminal className="w-4 h-4 text-cyan-400" />
+            </button>
+            
+            <div className="text-left font-mono">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  {activeSession ? activeSession.title : 'No Session Selected'}
+                </h2>
+                {activeSession?.favorite && <Star className="w-3 h-3 text-amber-400 fill-amber-400" />}
+              </div>
+              <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                <span>Ecosystem Security Barrier: {settings.activeWorkspace.toUpperCase()}</span>
+                <span>•</span>
+                <span>Active Link: {activeSession?.projectId ? `Project` : activeSession?.customerId ? `Customer` : `None`}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 font-mono text-xs">
+            {/* Quick Provider Picker */}
+            <div className="flex items-center gap-2 border border-[#1C2638] bg-[#121824] p-1 rounded">
+              <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+              <select
+                value={activeProvider}
+                onChange={(e) => {
+                  setActiveProvider(e.target.value);
+                  eventBus.publish('AI_PROVIDER_CHANGED', { providerId: e.target.value }, { emitter: 'AIWorkspace' });
+                }}
+                className="bg-transparent text-[11px] text-slate-300 border-none outline-none pr-6 font-semibold"
+              >
+                <option value="gemini" className="bg-[#121824]">Google Gemini</option>
+                <option value="openai" className="bg-[#121824]">OpenAI Enterprise</option>
+                <option value="anthropic" className="bg-[#121824]">Anthropic Claude</option>
+                <option value="ollama" className="bg-[#121824]">Ollama Local Core</option>
+              </select>
+            </div>
+
+            <button
+              onClick={() => setIsInspectorOpen(!isInspectorOpen)}
+              className={`p-1.5 rounded border transition-colors ${
+                isInspectorOpen ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-400' : 'border-[#1C2638] text-slate-400 hover:text-slate-200'
+              }`}
+              title="Inspect Dynamic Context Builder"
+            >
+              <Layers className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* 2. Chat Conversation View Pane (Span 6 or 9 depending on right telemetry dock toggle) */}
-        <div className={`h-full flex flex-col bg-slate-950 transition-all duration-300 relative ${isStatusDockOpen ? 'lg:col-span-6' : 'lg:col-span-9'}`}>
-          
-          {/* Active Chat Header Information */}
-          <div className="border-b border-slate-900 px-5 py-3 flex items-center justify-between bg-slate-950 shrink-0">
-            <div className="min-w-0 flex flex-col pl-8 lg:pl-0">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-200 text-xs truncate max-w-[200px] sm:max-w-[320px]">
-                  {activeChat ? activeChat.title : 'Initiate Active Thread...'}
-                </span>
-                {activeChat?.pinned && (
-                  <DSBadge variant="outline" color="amber">Pinned</DSBadge>
-                )}
-                {activeChat?.favorite && (
-                  <DSBadge variant="outline" color="cyan">Favorite</DSBadge>
-                )}
-              </div>
-              <p className="text-[9px] font-mono text-slate-500 leading-tight mt-0.5 truncate">
-                {activeChat ? `Workspace: ${activeChat.workspace} • Category: ${activeChat.category}` : 'No active workspace contexts'}
+        {/* Message Canvas */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {!activeSession ? (
+            <div className="h-full flex flex-col items-center justify-center p-8 space-y-4 font-mono">
+              <Compass className="w-10 h-10 text-cyan-500 animate-spin" />
+              <h3 className="text-sm font-semibold tracking-widest text-cyan-400">SELECT INTELLIGENCE DISPATCH THREAD</h3>
+              <p className="text-xs text-slate-500 max-w-sm text-center">
+                Click an existing diagnostic session or create a new workflow thread to query the ecosystem.
               </p>
+              <DSButton variant="primary" onClick={() => handleNewSession()}>
+                Bootstrap First Thread
+              </DSButton>
+            </div>
+          ) : activeSession.messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center p-8 space-y-6 max-w-xl mx-auto">
+              <div className="p-4 bg-cyan-950/20 rounded-full border border-cyan-500/20">
+                <Sparkles className="w-8 h-8 text-cyan-400" />
+              </div>
+              <div className="space-y-2 text-center">
+                <h3 className="text-sm font-mono font-bold tracking-widest text-slate-200 uppercase">
+                  UNIFIED CO-PILOT TUNNEL ESTABLISHED
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed font-mono">
+                  I have automatically gathered all relevant live environment parameters for this 
+                  <span className="text-cyan-400 font-semibold px-1">[{settings.activeWorkspace.toUpperCase()}]</span> 
+                  isolation boundary. Ask me anything about current active customers, project milestones, AS9100 standards, or file structures.
+                </p>
+              </div>
+
+              {/* Dynamic Suggested Context Tags */}
+              <div className="w-full grid grid-cols-2 gap-3 text-left">
+                <div
+                  onClick={() => setPromptText('Inspect the StarLabs contract Service Level Agreement constraints and deliverable timelines.')}
+                  className="p-3 rounded bg-[#101524]/60 border border-[#1C2638] hover:border-cyan-500/30 transition-all cursor-pointer font-mono"
+                >
+                  <div className="text-[10px] text-cyan-400 flex items-center gap-1">
+                    <UserCheck className="w-3 h-3" /> SLA Contract Review
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-1 truncate">Analyze StarLabs late shipment penalty capping.</p>
+                </div>
+                
+                <div
+                  onClick={() => setPromptText('Verify the yield stress limits of Titanium composites under extreme thermal conditions (exceeding 800K).')}
+                  className="p-3 rounded bg-[#101524]/60 border border-[#1C2638] hover:border-cyan-500/30 transition-all cursor-pointer font-mono"
+                >
+                  <div className="text-[10px] text-cyan-400 flex items-center gap-1">
+                    <Database className="w-3 h-3" /> Materials Engineering
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-1 truncate">Verify titanium yield strength limits.</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-4xl mx-auto space-y-6">
+              {activeSession.messages.map((msg, i) => {
+                const isUser = msg.role === 'user';
+                return (
+                  <div
+                    key={i}
+                    className={`flex gap-4 ${isUser ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {!isUser && (
+                      <div className="w-8 h-8 rounded border border-cyan-500/20 bg-cyan-950/20 flex items-center justify-center font-mono text-cyan-400 font-bold shrink-0 shadow-[0_0_8px_rgba(6,182,212,0.1)]">
+                        <Cpu className="w-4 h-4" />
+                      </div>
+                    )}
+
+                    <div className="max-w-[85%] space-y-2">
+                      <div className={`p-4 rounded-lg border text-left leading-relaxed ${
+                        isUser
+                          ? 'bg-[#151D2A] border-slate-700 text-slate-100 font-mono text-xs'
+                          : 'bg-[#0E131F] border-[#151B26] text-slate-300 text-xs font-sans'
+                      }`}>
+                        
+                        {/* Dynamic Render with custom headers and lists */}
+                        <div className="whitespace-pre-wrap leading-relaxed space-y-3">
+                          {msg.content}
+                        </div>
+
+                        {/* Audit inspector link if Assistant */}
+                        {!isUser && (
+                          <div className="mt-3 pt-3 border-t border-[#1C2638] flex items-center justify-between text-[10px] font-mono">
+                            <div className="text-slate-500 flex items-center gap-1.5">
+                              <span>Provider: {activeSession.providerId.toUpperCase()}</span>
+                              <span>•</span>
+                              <span>Temp: {activeSession.temperature}</span>
+                            </div>
+                            
+                            <button
+                              onClick={() => {
+                                const dummyMeta = responseInspector.analyzeResponse(
+                                  msg.content,
+                                  compiledFinalPrompt.length,
+                                  340,
+                                  activeSession.providerId,
+                                  currentContext
+                                );
+                                setActiveResponseMeta(dummyMeta);
+                                setIsResponseInspectorOpen(true);
+                              }}
+                              className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 uppercase tracking-wider text-[9px] font-semibold"
+                            >
+                              <Eye className="w-3 h-3" /> Inspect Response Model Audit
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {isUser && (
+                      <div className="w-8 h-8 rounded border border-slate-700 bg-slate-800 flex items-center justify-center font-mono text-xs text-slate-300 font-bold shrink-0">
+                        {user ? user.name.charAt(0) : 'O'}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Streaming Content Indicator */}
+              {isStreaming && streamContent && (
+                <div className="flex gap-4 justify-start">
+                  <div className="w-8 h-8 rounded border border-cyan-500/20 bg-cyan-950/20 flex items-center justify-center font-mono text-cyan-400 font-bold shrink-0 animate-pulse">
+                    <Cpu className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div className="max-w-[85%] text-left">
+                    <div className="p-4 rounded-lg border bg-[#0E131F] border-cyan-500/20 text-slate-300 text-xs font-sans">
+                      <div className="whitespace-pre-wrap leading-relaxed">
+                        {streamContent}
+                        <span className="inline-block w-1.5 h-4 ml-1 bg-cyan-400 animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Prompt Composer & Toolbar */}
+        <div className="p-4 border-t border-[#151B26] bg-[#090C12] space-y-3 font-mono">
+          <div className="max-w-4xl mx-auto space-y-2">
+            
+            {/* Input Area */}
+            <div className="relative border border-[#1C2638] bg-[#0E1420] rounded p-1.5 focus-within:border-cyan-500/40 transition-all flex items-end gap-2">
+              <textarea
+                value={promptText}
+                onChange={(e) => setPromptText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask Enterprise Co-Pilot... (Press Cmd+Enter to dispatch)"
+                className="flex-1 bg-transparent resize-none p-2 text-xs font-mono text-slate-200 placeholder-slate-500 border-none outline-none min-h-[44px] max-h-[140px]"
+              />
+              
+              <div className="flex items-center gap-1.5 pb-1">
+                <DSButton
+                  size="sm"
+                  variant="primary"
+                  onClick={handleSendPrompt}
+                  disabled={!promptText.trim() || isStreaming || !activeSessionId}
+                  leftIcon={<Send className="w-3.5 h-3.5" />}
+                >
+                  {isStreaming ? 'Streaming...' : 'Send'}
+                </DSButton>
+              </div>
             </div>
 
-            {/* Quick Status Control triggers */}
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setIsStatusDockOpen(!isStatusDockOpen)}
-                className={`p-1.5 bg-slate-950 border rounded font-mono text-[10px] cursor-pointer transition-colors flex items-center gap-1.5 ${isStatusDockOpen ? 'border-cyan-500/30 text-cyan-400 bg-cyan-950/5' : 'border-slate-900 text-slate-500 hover:text-slate-300'}`}
-                title={isStatusDockOpen ? 'Close Telemetry Monitor' : 'Open Telemetry Monitor'}
-              >
-                <span>Telemetry {isStatusDockOpen ? 'ON' : 'OFF'}</span>
-              </button>
+            {/* Quick Suggestions / Telemetry Footer */}
+            <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 text-slate-400">
+                  <Database className="w-3 h-3 text-cyan-400" /> Aligned Context Size:
+                </span>
+                <span className="text-cyan-400 font-semibold">{estimatedTokens} estimated tokens</span>
+              </div>
+              
+              <div className="flex gap-4">
+                <span>Temp: {temperature}</span>
+                <span>Max Tokens: 2,048</span>
+              </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Messages Scroll Panel */}
-          <div className="flex-1 overflow-y-auto bg-slate-950/20">
-            {activeChat ? (
-              <ChatMessageList messages={activeChat.messages} />
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-                <Terminal className="w-8 h-8 text-slate-800 mb-2 animate-pulse" />
-                <span className="text-xs font-mono text-slate-500 uppercase tracking-widest font-bold">No Active Thread Selection</span>
-                <button
-                  onClick={() => handleNewChat()}
-                  className="mt-4 px-4 py-2 bg-cyan-950/40 hover:bg-cyan-950/60 border border-cyan-800/25 text-cyan-400 hover:text-white rounded text-xs cursor-pointer font-mono font-semibold"
-                >
-                  Create Fresh Session
-                </button>
+      {/* 3. CONTEXT & LAYER INSPECTOR (DRAWER) */}
+      <AnimatePresence initial={false}>
+        {isInspectorOpen && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 330, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            className="h-full bg-[#0B0E14] border-l border-[#151B26] flex flex-col shrink-0 overflow-hidden text-left"
+          >
+            {/* Drawer Tabs Header */}
+            <div className="flex bg-[#090C12] border-b border-[#151B26] text-[10px] font-mono">
+              <button
+                onClick={() => setActiveInspectorTab('context')}
+                className={`flex-1 py-3 text-center transition-colors font-bold uppercase tracking-wider ${
+                  activeInspectorTab === 'context' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-[#0C111C]' : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                Ecosystem Context
+              </button>
+              <button
+                onClick={() => setActiveInspectorTab('composer')}
+                className={`flex-1 py-3 text-center transition-colors font-bold uppercase tracking-wider ${
+                  activeInspectorTab === 'composer' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-[#0C111C]' : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                Prompt Layers
+              </button>
+            </div>
+
+            {/* Tab 1: Live Context */}
+            {activeInspectorTab === 'context' && (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="p-3 border-b border-[#151B26] bg-[#0E131F]/30 flex items-center justify-between font-mono text-[11px]">
+                  <span className="text-slate-400 uppercase tracking-widest font-bold">Dynamic Context Matrix</span>
+                  <DSBadge variant="solid" color="cyan">AUTO-TRACK</DSBadge>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-xs">
+                  {contextItems.map(item => {
+                    const isEnabled = contextBuilder.isEnabled(item.type);
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-2.5 rounded border transition-all ${
+                          isEnabled 
+                            ? 'bg-[#121926]/40 border-cyan-500/15' 
+                            : 'bg-slate-900/30 border-transparent opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={isEnabled}
+                              onChange={(e) => {
+                                contextBuilder.setEnabled(item.type, e.target.checked);
+                                refreshSessions();
+                              }}
+                              className="accent-cyan-500 rounded text-slate-900 cursor-pointer w-3.5 h-3.5"
+                            />
+                            <span className="font-bold text-[11px] text-slate-300 uppercase tracking-wider">
+                              {item.type}
+                            </span>
+                          </label>
+                          <span className="text-[9px] text-slate-500">
+                            {isEnabled ? 'SYNCED' : 'EXCLUDED'}
+                          </span>
+                        </div>
+
+                        <div className="mt-1.5 pl-5 text-[10px] text-slate-400 border-l border-[#1C2638] space-y-1">
+                          <div className="font-semibold text-slate-200 truncate">{item.label}</div>
+                          {isEnabled && item.metadata && (
+                            <pre className="text-[9px] bg-slate-950/40 p-1 rounded text-slate-500 font-mono mt-1 overflow-x-auto">
+                              {JSON.stringify(item.metadata, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
-          </div>
 
-          {/* Composer Box */}
-          <div className="shrink-0">
-            <ChatPromptEditor
-              onSendMessage={handleSendMessage}
-              templates={PROMPT_LIBRARY}
-              onSelectTemplate={(tpl) => {
-                handleSelectTemplate(tpl);
-              }}
-              isStreaming={isStreaming}
-            />
-          </div>
-        </div>
+            {/* Tab 2: Prompt Layers */}
+            {activeInspectorTab === 'composer' && (
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-[11px] text-left">
+                <div className="p-3 border border-[#1C2638] bg-[#0E131F]/30 rounded space-y-2">
+                  <h4 className="font-bold text-cyan-400 uppercase tracking-widest text-[10px]">
+                    Layered Composer Engine
+                  </h4>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    Dynamic prompt layers compile automatically prior to dispatching queries. Toggle tabs below to analyze exact variables.
+                  </p>
+                </div>
 
-        {/* 3. AI Status Panel / Telemetry Monitor (Span 3, collapsible) */}
-        {isStatusDockOpen && (
-          <div className="lg:col-span-3 h-full border-t lg:border-t-0 lg:border-l border-slate-900 absolute lg:relative inset-y-0 right-0 z-40 w-72 lg:w-auto bg-slate-950 transition-all duration-300">
-            <div className="h-full relative">
-              <ChatStatusPanel
-                settings={chatSettings}
-                activeChatTitle={activeChat ? activeChat.title : ''}
-                onOpenSettings={() => setIsSettingsOpen(true)}
-              />
-              {/* Close drawer for mobile overlay */}
-              <button
-                onClick={() => setIsStatusDockOpen(false)}
-                className="absolute top-3.5 right-3 lg:hidden p-1 bg-slate-900 hover:bg-slate-800 rounded text-slate-500 hover:text-slate-200 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
+                {/* Layer 1 */}
+                <div className="space-y-1">
+                  <div className="text-[9px] text-slate-500 uppercase font-bold">1. System Prompt base</div>
+                  <pre className="bg-[#121824] p-2 border border-[#1C2638] rounded text-slate-400 whitespace-pre-wrap max-h-24 overflow-y-auto text-[9px]">
+                    {promptLayers.systemPrompt}
+                  </pre>
+                </div>
+
+                {/* Layer 2 */}
+                <div className="space-y-1">
+                  <div className="text-[9px] text-slate-500 uppercase font-bold">2. Workspace Isolation Layer</div>
+                  <pre className="bg-[#121824] p-2 border border-[#1C2638] rounded text-cyan-500 whitespace-pre-wrap max-h-20 overflow-y-auto text-[9px]">
+                    {promptLayers.workspacePrompt}
+                  </pre>
+                </div>
+
+                {/* Layer 3 */}
+                <div className="space-y-1">
+                  <div className="text-[9px] text-slate-500 uppercase font-bold">3. Aligned Module Directives</div>
+                  <pre className="bg-[#121824] p-2 border border-[#1C2638] rounded text-slate-400 whitespace-pre-wrap text-[9px]">
+                    {promptLayers.modulePrompt}
+                  </pre>
+                </div>
+
+                {/* Layer 4 */}
+                <div className="space-y-1">
+                  <div className="text-[9px] text-slate-500 uppercase font-bold">4. Compiled XML Context</div>
+                  <pre className="bg-[#121824] p-2 border border-[#1C2638] rounded text-green-500 whitespace-pre-wrap max-h-40 overflow-y-auto text-[9px]">
+                    {promptLayers.contextPrompt}
+                  </pre>
+                </div>
+
+                {/* Combined Compile */}
+                <div className="pt-2 border-t border-[#1C2638] space-y-1">
+                  <div className="text-[9px] text-slate-500 uppercase font-bold">Absolute Compiled Prompt Preview</div>
+                  <pre className="bg-slate-950 p-2 border border-slate-800 rounded text-slate-500 whitespace-pre-wrap max-h-48 overflow-y-auto text-[8px] leading-tight">
+                    {compiledFinalPrompt}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 4. MODAL DRAWER: RESPONSE INSPECTOR */}
+      <AnimatePresence>
+        {isResponseInspectorOpen && activeResponseMeta && (
+          <div className="fixed inset-0 z-50 flex items-center justify-end p-4 bg-slate-950/80 backdrop-blur-sm font-mono text-left">
+            <motion.div
+              initial={{ x: '100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0 }}
+              className="w-full max-w-lg h-full bg-[#0B0E14] border-l border-[#151B26] p-6 flex flex-col space-y-6 overflow-y-auto"
+            >
+              <div className="flex items-center justify-between border-b border-[#151B26] pb-4">
+                <div className="flex items-center gap-2">
+                  <Terminal className="w-5 h-5 text-cyan-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-200">
+                    AI Response Audit Report
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setIsResponseInspectorOpen(false)}
+                  className="text-slate-500 hover:text-slate-300 text-xs uppercase"
+                >
+                  [Close]
+                </button>
+              </div>
+
+              {/* Status metrics bar */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 rounded border border-[#1C2638] bg-[#0E1320] space-y-1">
+                  <span className="text-[9px] text-slate-500 uppercase">Provider / Model</span>
+                  <div className="text-xs font-bold text-slate-200 truncate uppercase">
+                    {activeResponseMeta.providerId} • Flash
+                  </div>
+                </div>
+
+                <div className="p-3 rounded border border-[#1C2638] bg-[#0E1320] space-y-1">
+                  <span className="text-[9px] text-slate-500 uppercase">Confidence Boundary</span>
+                  <div className="text-xs font-bold text-emerald-400">
+                    {(activeResponseMeta.confidence * 100).toFixed(2)}% Match
+                  </div>
+                </div>
+
+                <div className="p-3 rounded border border-[#1C2638] bg-[#0E1320] space-y-1">
+                  <span className="text-[9px] text-slate-500 uppercase">Processing Latency</span>
+                  <div className="text-xs font-bold text-slate-200">
+                    {activeResponseMeta.latencyMs}ms
+                  </div>
+                </div>
+
+                <div className="p-3 rounded border border-[#1C2638] bg-[#0E1320] space-y-1">
+                  <span className="text-[9px] text-slate-500 uppercase">Input / Output Tokens</span>
+                  <div className="text-xs font-bold text-slate-200">
+                    {activeResponseMeta.inputTokens} / {activeResponseMeta.outputTokens}
+                  </div>
+                </div>
+              </div>
+
+              {/* Estimated operational costs */}
+              <div className="p-3 rounded border border-cyan-500/20 bg-cyan-950/10 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <DollarSign className="w-4 h-4 text-cyan-400" />
+                  <span className="font-semibold text-slate-300">Transaction Budget Cost</span>
+                </div>
+                <div className="text-xs font-bold text-cyan-400">
+                  ${activeResponseMeta.costEstimate.toFixed(6)} USD
+                </div>
+              </div>
+
+              {/* Mapped dynamic context nodes */}
+              <div className="space-y-2 text-xs">
+                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                  MAPPED RUNTIME DATA LINKAGE SUMMARY
+                </span>
+                
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex justify-between p-2 rounded bg-slate-900 border border-[#1C2638]">
+                    <span className="text-slate-400">Knowledge Base Articles:</span>
+                    <span className="font-bold text-slate-200">{activeResponseMeta.knowledgeUsed.length} Linked</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded bg-slate-900 border border-[#1C2638]">
+                    <span className="text-slate-400">Recall Memory Registers:</span>
+                    <span className="font-bold text-slate-200">{activeResponseMeta.memoryUsed.length} Linked</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded bg-slate-900 border border-[#1C2638]">
+                    <span className="text-slate-400">Document Center Indexing:</span>
+                    <span className="font-bold text-slate-200">{activeResponseMeta.documentsUsed.length} Linked</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warnings / Policy Alerts */}
+              {activeResponseMeta.warnings.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[10px] text-amber-500 font-bold uppercase flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" /> CO-PILOT SYSTEM WARNINGS
+                  </div>
+                  <div className="space-y-1">
+                    {activeResponseMeta.warnings.map((w, i) => (
+                      <div key={i} className="p-2 border border-amber-500/20 bg-amber-500/5 rounded text-[10px] text-amber-400">
+                        {w}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mapped Citation Sources */}
+              {activeResponseMeta.referencedSources.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                    REFERENCED CITATIONS & LEGAL LEDGERS
+                  </span>
+                  
+                  <div className="space-y-2">
+                    {activeResponseMeta.referencedSources.map((source, i) => (
+                      <div key={i} className="p-3 border border-[#1C2638] bg-slate-900/40 rounded flex flex-col space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-950/40 border border-cyan-500/20 text-cyan-400 text-[8px] uppercase font-mono font-bold">
+                            {source.type}
+                          </span>
+                          <span className="text-[9px] text-slate-500">ID: {source.id}</span>
+                        </div>
+                        <div className="text-xs font-bold text-slate-300">{source.title}</div>
+                        {source.snippet && <p className="text-[10px] text-slate-500 italic">"{source.snippet}"</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </motion.div>
           </div>
         )}
-      </div>
+      </AnimatePresence>
 
-      {/* E. Technical Specs Overview Footer Card */}
-      <div className="bg-slate-950 border border-slate-900 p-5 rounded-sm space-y-4 font-sans text-xs">
-        <h4 className="text-slate-200 font-bold uppercase font-mono tracking-wider text-[11px] flex items-center gap-2">
-          <Terminal className="w-4 h-4 text-cyan-400 animate-pulse" />
-          <span>Sprint 4 Deployment Architecture Blueprint</span>
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-slate-400 leading-relaxed">
-          <div className="space-y-1.5">
-            <span className="font-semibold text-slate-300 font-mono text-[10px] uppercase">A. Interface Boundaries</span>
-            <p className="text-[11px]">Desktop-first bento grid view collapsible into mobile sliding drawers. Telemetry panels dynamically shrink active chat areas for precise viewing density.</p>
-          </div>
-          <div className="space-y-1.5">
-            <span className="font-semibold text-slate-300 font-mono text-[10px] uppercase">B. Input Tokenizer</span>
-            <p className="text-[11px]">Character length trackers translate word sequences into 1:4 byte weights, allowing operators to estimate latency before dispatching queries to servers.</p>
-          </div>
-          <div className="space-y-1.5">
-            <span className="font-semibold text-slate-300 font-mono text-[10px] uppercase">C. Custom Markdown Node</span>
-            <p className="text-[11px]">Bypasses heavy node package footprints. Standard string splitters index code-blocks and render high-fidelity copy-to-clipboard blocks seamlessly.</p>
-          </div>
-          <div className="space-y-1.5">
-            <span className="font-semibold text-slate-300 font-mono text-[10px] uppercase">D. Mock Simulation Layer</span>
-            <p className="text-[11px]">Dispatches trigger natural processing delays, system clearance warnings, and detailed technical logs to mimic full back-end execution cycles.</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

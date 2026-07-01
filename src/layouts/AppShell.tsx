@@ -34,9 +34,13 @@ import {
   Box,
   KeyRound,
   FileText,
-  X
+  Contact,
+  Folder,
+  X,
+  GitBranch
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { eventBus } from '../core';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -82,11 +86,15 @@ export const AppShell: React.FC<AppShellProps> = ({ children, currentRoute, onNa
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
     { id: 'ai-core', label: 'AI Core Platform', icon: Cpu },
+    { id: 'decision', label: 'Decision Intelligence', icon: Activity },
+    { id: 'thread', label: 'Digital Thread', icon: GitBranch },
     { id: 'projects', label: 'Projects & Milestones', icon: FolderTree },
     { id: 'crm', label: 'CRM Portal', icon: Users },
+    { id: 'contacts', label: 'Contacts Directory', icon: Contact },
     { id: 'lms', label: 'LMS Training', icon: GraduationCap },
     { id: 'kms', label: 'KMS Database', icon: Database },
     { id: 'document-intelligence', label: 'Document RAG', icon: FileText },
+    { id: 'documents', label: 'Document Center', icon: Folder },
     { id: 'engineering', label: 'Engineering', icon: Terminal },
     { id: 'packaging', label: 'Packaging Studio', icon: Box },
     { id: 'admin', label: 'Administration', icon: KeyRound },
@@ -486,9 +494,30 @@ export const AppShell: React.FC<AppShellProps> = ({ children, currentRoute, onNa
         setSearchQuery={setCmdQuery}
         onCommandSelect={(cmd) => {
           setIsCommandOpen(false);
-          if (cmd === 'ask-ai') {
+          if (cmd === 'open-ai-workspace') {
             onNavigate('ai-core');
-            triggerToast('info', 'AI Core platform route opened. Core capabilities are locked under Sprint 2.');
+            triggerToast('success', 'Enterprise AI Workspace loaded.');
+          } else if (cmd === 'new-ai-session') {
+            onNavigate('ai-core');
+            setTimeout(() => eventBus.publish('CMD_NEW_SESSION', {}, { emitter: 'AppShell' }), 100);
+          } else if (cmd === 'search-ai-sessions') {
+            onNavigate('ai-core');
+            triggerToast('info', 'AI Session directory search active.');
+          } else if (cmd === 'favorite-ai-session') {
+            onNavigate('ai-core');
+            triggerToast('info', 'Favorite toggle triggered.');
+          } else if (cmd === 'open-context-inspector') {
+            onNavigate('ai-core');
+            setTimeout(() => eventBus.publish('CMD_OPEN_CONTEXT_INSPECTOR', {}, { emitter: 'AppShell' }), 100);
+          } else if (cmd === 'refresh-ai-context') {
+            onNavigate('ai-core');
+            setTimeout(() => eventBus.publish('CMD_REFRESH_CONTEXT', {}, { emitter: 'AppShell' }), 100);
+          } else if (cmd === 'switch-ai-provider') {
+            onNavigate('ai-core');
+            triggerToast('info', 'AI Gateway provider selection active.');
+          } else if (cmd === 'ask-ai') {
+            onNavigate('ai-core');
+            triggerToast('info', 'AI Core platform route opened.');
           } else if (cmd === 'create-task') {
             onNavigate('projects');
             triggerToast('success', 'Workspace target shifted to milestone scheduler.');
@@ -498,6 +527,86 @@ export const AppShell: React.FC<AppShellProps> = ({ children, currentRoute, onNa
           } else if (cmd === 'system-status') {
             onNavigate('admin');
             triggerToast('info', 'IAM keys clearance page opened.');
+          } else if (cmd === 'customer-registry' || cmd === 'create-customer') {
+            onNavigate('crm');
+            triggerToast('success', 'Enterprise customer workspace roster loaded.');
+          } else if (cmd === 'contact-registry' || cmd === 'create-contact' || cmd === 'search-contact') {
+            onNavigate('contacts');
+            triggerToast('success', 'Enterprise contact workspace registry loaded.');
+          } else if (
+            cmd === 'document-center' ||
+            cmd === 'upload-document' ||
+            cmd === 'search-document' ||
+            cmd === 'recent-documents' ||
+            cmd === 'favorite-documents' ||
+            cmd === 'archive-document'
+          ) {
+            onNavigate('documents');
+            triggerToast('success', `Enterprise Document Center loaded. Action: ${cmd}`);
+            (window as any).__lastDocCommand = cmd;
+          } else if (
+            cmd === 'open-engineering-workspace' ||
+            cmd === 'open-drawing' ||
+            cmd === 'open-engineering-project' ||
+            cmd === 'search-drawings' ||
+            cmd === 'search-standards' ||
+            cmd === 'recent-drawings' ||
+            cmd === 'engineering-dashboard'
+          ) {
+            onNavigate('engineering');
+            triggerToast('success', `Engineering Workspace loaded. Action: ${cmd}`);
+            (window as any).__lastEngineeringCommand = cmd;
+            setTimeout(() => {
+              eventBus.publish('CMD_ENGINEERING', { command: cmd }, { emitter: 'AppShell' });
+            }, 150);
+          } else if (
+            cmd === 'open-packaging-studio' ||
+            cmd === 'create-packaging-project' ||
+            cmd === 'search-packaging' ||
+            cmd === 'recent-packaging-projects' ||
+            cmd === 'packaging-dashboard' ||
+            cmd === 'material-library' ||
+            cmd === 'create-material' ||
+            cmd === 'open-material' ||
+            cmd === 'search-material' ||
+            cmd === 'recent-materials' ||
+            cmd === 'favorite-materials' ||
+            cmd === 'load-planning-registry' ||
+            cmd === 'container-library' ||
+            cmd === 'create-load-plan' ||
+            cmd === 'logistics-dashboard' ||
+            cmd === 'returnables-registry' ||
+            cmd === 'returnables-dashboard' ||
+            cmd === 'create-returnable-asset' ||
+            cmd === 'track-returnable-asset'
+          ) {
+            onNavigate('packaging');
+            triggerToast('success', `Packaging Studio loaded. Action: ${cmd}`);
+            (window as any).__lastPackagingCommand = cmd;
+            setTimeout(() => {
+              eventBus.publish('CMD_PACKAGING', { command: cmd }, { emitter: 'AppShell' });
+            }, 150);
+          } else if (
+            cmd === 'open-decision-intelligence' ||
+            cmd === 'create-dashboard' ||
+            cmd === 'search-kpi'
+          ) {
+            onNavigate('decision');
+            triggerToast('success', `Decision Intelligence loaded. Action: ${cmd}`);
+            setTimeout(() => {
+              eventBus.publish('CMD_DECISION', { command: cmd }, { emitter: 'AppShell' });
+            }, 150);
+          } else if (
+            cmd === 'open-digital-thread' ||
+            cmd === 'trace-object' ||
+            cmd === 'relationship-explorer' ||
+            cmd === 'dependency-viewer'
+          ) {
+            onNavigate('thread');
+            triggerToast('success', `Digital Thread Workspace loaded. Action: ${cmd}`);
+            setTimeout(() => {
+              eventBus.publish('CMD_THREAD', { command: cmd }, { emitter: 'AppShell' });
+            }, 150);
           }
         }}
       />

@@ -1,7 +1,19 @@
 {
-  "name": "react-example",
+  "name": "jnas-ai-core",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.1",
+  "description": "JNAS Enterprise Platform core infrastructure supporting events, logging, central configuration, error frameworks, and service registries.",
+  "author": "JNAS Systems Architecture Group",
+  "homepage": "https://ai.studio/build",
+  "license": "UNLICENSED",
+  "keywords": [
+    "jnas",
+    "ai-core",
+    "enterprise",
+    "architecture-hardening",
+    "event-bus",
+    "service-registry"
+  ],
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
